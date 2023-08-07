@@ -23,47 +23,47 @@ def inputs_mining_exp():
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm2',
-    'reward_factor': 0.1,
+    'reward_factor': 0.2,
     'cost': 1,
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm3',
-    'reward_factor': 0.1,
+    'reward_factor': 0.3,
     'cost': 1,
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm4',
-    'reward_factor': 0.1,
+    'reward_factor': 0.4,
     'cost': 1,
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm5',
-    'reward_factor': 0.1,
+    'reward_factor': 0.5,
     'cost': 1,
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm6',
-    'reward_factor': 0.1,
+    'reward_factor': 0.6,
     'cost': 1,
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm7',
-    'reward_factor': 0.1,
+    'reward_factor': 0.7,
     'cost': 1,
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm8',
-    'reward_factor': 0.1,
+    'reward_factor': 0.8,
     'cost': 1,
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm9',
-    'reward_factor': 0.1,
+    'reward_factor': 0.9,
     'cost': 1,
     'var_cost_sigma': 0.5
   }, {
     'reference': 'm10',
-    'reward_factor': 0.1,
+    'reward_factor': 1,
     'cost': 1,
     'var_cost_sigma': 0.5
   }]  # heavy mining vs. light mining actions
