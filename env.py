@@ -75,7 +75,7 @@ class DynamicConfounderBanditGaussian():
 
     # this class uses Gaussian models for observations and rewards
     def __init__(self, X_cond_prob, Z_init_prior, latent_transition, R_cond):
-
+    #            self, theta_star, probs_latent_init, phi_star, reward_params
         self.X_cond_prob, self.Z_init_prior, self.latent_transition = \
             X_cond_prob, Z_init_prior, latent_transition
         self.R_cond = R_cond

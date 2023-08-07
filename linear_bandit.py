@@ -1,7 +1,7 @@
 import numpy as np
 import math
 import itertools
-from env import DynamicConfounderBanditGaussian, DynamicConfounderBanditDiscrete
+from env import DynamicConfounderBanditGaussian
 from hmm import MultinomialHMMonline, GaussianHMMonline
 
 from cmd_args import cmd_args

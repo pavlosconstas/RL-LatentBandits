@@ -2,9 +2,8 @@ import numpy as np
 #import random
 import math
 import copy
-from env import DynamicConfounderBanditGaussian, DynamicConfounderBanditDiscrete
-import env_params
-import env_params_mining
+from env import DynamicConfounderBanditGaussian
+import env_params_dosing
 from algorithm import run
 from linear_bandit import run_linear
 from cmd_args import cmd_args
@@ -20,8 +19,7 @@ env_type = 'gaussian'
 if env_type=='gaussian':
 
     # mining application parameters
-    timescale = 'fast'
-    theta_star, phi_star, reward_params = env_params_mining.inputs_mining_exp(timescale)
+    theta_star, phi_star, reward_params = env_params_dosing.inputs_mining_exp()
 
     Z = phi_star.shape[0]
     probs_latent_init = np.random.rand(Z,) # np.ones(Z,)/Z
@@ -29,18 +27,8 @@ if env_type=='gaussian':
 
     env = DynamicConfounderBanditGaussian(theta_star, probs_latent_init, phi_star, reward_params)
 
-if env_type=='discrete':
-
-    phi_star, probs_context, probs_reward, probs_latent_init = env_params.discrete_1()
-    #phi_star, probs_context, probs_reward, probs_latent_init = env_params.discrete_2()
-    X, Z = probs_context.shape
-    K, _ = probs_reward.shape
-    R = 2
-
-    env = DynamicConfounderBanditDiscrete(X, K, Z, R, probs_context, probs_reward, probs_latent_init, phi_star) ## prob_change=prob_change
-
 ep_length = 10000
-num_episodes = 10
+num_episodes = 100
 
 #run_linear(env, ep_length, num_episodes)
 
