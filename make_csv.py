@@ -21,6 +21,6 @@ plt.scatter(x, y, color='navy')
 
 plt.plot(x, a*x+b, color='black', linestyle='--', linewidth=2)
 
-plt.text(0, 4000, 'y = ' + '{:.2f}'.format(b) + ' + {:.2f}'.format(a) + 'x', size=14)
+plt.text(0, round(max(y), -2), 'y = ' + '{:.2f}'.format(b) + ' + {:.2f}'.format(a) + 'x', size=14)
 
 plt.show()

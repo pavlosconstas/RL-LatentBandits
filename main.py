@@ -28,7 +28,7 @@ if env_type=='gaussian':
     env = DynamicConfounderBanditGaussian(theta_star, probs_latent_init, phi_star, reward_params)
 
 ep_length = 10000
-num_episodes = 200
+num_episodes = 100
 
 #run_linear(env, ep_length, num_episodes)
 
