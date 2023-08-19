@@ -10,7 +10,10 @@ def categorical(probs):
     u = np.repeat(u, probs.shape[-1], axis=-1)
     return (probs.cumsum(-1) >= u).argmax(-1)
 
+
+
 class DynamicConfounderBanditDiscrete():
+
 
     def __init__(self, X, K, Z, R, probs_context, probs_reward, probs_latent_init, phi_star):
 
@@ -26,6 +29,15 @@ class DynamicConfounderBanditDiscrete():
         ## self.latent_transition = (1 - prob_change*(1 + 1/(Z-1))) * np.eye(Z) + np.full((Z,Z), prob_change/(Z-1))
         ## self.latent_transition /= np.sum(self.latent_transition,1,keepdims=True)
         self.z = np.random.choice(np.arange(self.Z), p=probs_latent_init)
+
+    def transition():
+
+        '''
+        PSEUDO-CODE
+
+        
+        '''
+        pass
 
     def step(self):
 
@@ -74,23 +86,20 @@ class DynamicConfounderBanditDiscrete():
 class DynamicConfounderBanditGaussian():
 
     # this class uses Gaussian models for observations and rewards
-    def __init__(self, X_cond_prob, Z_init_prior, latent_transition, R_cond):
-    #            self, theta_star, probs_latent_init, phi_star, reward_params
-        self.X_cond_prob, self.Z_init_prior, self.latent_transition = \
-            X_cond_prob, Z_init_prior, latent_transition
+    def __init__(self, X_cond_prob,probs_latent_init, R_cond, Z_states, A_states):
+    #            self, theta_star, probs_latent_init, reward_params
+        self.X_cond_prob, self.probs_latent_init = X_cond_prob, probs_latent_init
         self.R_cond = R_cond
+        self.Z_states, self.A_states = Z_states, A_states
 
-        self.Z, self.K = self.R_cond.shape[0], self.R_cond.shape[1]
+        self.Z, self.K = len(Z_states['anxiety_level']), len(A_states)
 
-        self.probs_latent_init = Z_init_prior
-        self.z = np.random.choice(np.arange(self.Z), p=self.probs_latent_init)
+        self.z = [np.random.choice(np.arange(self.Z), p=probs_latent_init[i])+1 for i in range(0, len(self.probs_latent_init))]
 
     def step(self):
 
-        self.z = np.random.choice(np.arange(self.Z), p=self.latent_transition[:,self.z]) # state transition
+        self.z = [np.random.choice(np.arange(self.Z), p=()) for _ in range(0, len(self.z))] # state transition
 
-        x_mean = self.X_cond_prob[self.z, 0]
-        x_stdev = self.X_cond_prob[self.z, 1]
         x = np.random.normal(x_mean, x_stdev)
 
         return x
@@ -130,29 +139,3 @@ class DynamicConfounderBanditGaussian():
         r_stdevs = self.R_cond[:, action, 1]
 
         return norm.logpdf(reward, r_means, r_stdevs)
-
-    def entropies_x(self):
-        'vector of entropies of z-conditional context likelihoods'
-        'this method is not currently used'
-
-        x_means = self.X_cond_prob[:, 0]
-        x_stdevs = self.X_cond_prob[:, 1]
-        H = np.log(x_stdevs) + 0.5 * (np.log(2*math.pi) + 1)
-        return H
-
-    def kldivs_x(self):
-        'matrix of kldivs between z-conditional context likelihoods; element (i,j) = KL[p_i(x),p_j(x)]'
-        'this method is not currently used'
-
-        x_means = self.X_cond_prob[:, 0]
-        x_stdevs = self.X_cond_prob[:, 1]
-        kldivs = np.repeat(np.expand_dims(x_means, 0), self.Z, axis=0) 
-        kldivs -= np.repeat(np.expand_dims(x_means, 1), self.Z, axis=1)
-        kldivs *= kldivs
-        sigma1 = np.repeat(np.expand_dims(x_stdevs, 0), self.Z, axis=0)
-        sigma2 = np.repeat(np.expand_dims(x_stdevs, 1), self.Z, axis=1)
-        kldivs += np.square(sigma2)
-        kldivs /= 2*np.square(sigma1)
-        kldivs += np.log(sigma1) - np.log(sigma2) - 0.5
-        return kldivs
-
