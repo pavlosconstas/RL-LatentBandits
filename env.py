@@ -1,141 +1,55 @@
 import numpy as np
-from scipy.stats import norm
-import math
-import sys
+from hmm import PatientWithHMM
+
+class Medication:
+    def __init__(self, name, effect_depression, effect_anxiety, effect_insomnia, side_effect, time_to_effect):
+        self.name = name
+        self.effect_depression = effect_depression # tuple(mean, std_dev)
+        self.effect_anxiety = effect_anxiety
+        self.effect_insomnia = effect_insomnia
+        self.side_effect = side_effect
+        self.time_to_effect = time_to_effect
+        self.current_effect_time = 0
+
+    def apply_effect(self):
+        if self.current_effect_time < self.time_to_effect:
+            self.current_effect_time += 1
+            return (0, 0, 0, 0)
+        else:
+            return (
+                np.random.normal(self.effect_depression[0], self.effect_depression[1]),
+                np.random.normal(self.effect_anxiety[0], self.effect_anxiety[1]),
+                np.random.normal(self.effect_insomnia[0], self.effect_insomnia[1]),
+                np.random.normal(self.side_effect[0], self.side_effect[1])
+            )
 
 
-def categorical(probs):
-    u = np.random.uniform(size=probs.shape[0])
-    u = np.expand_dims(u, axis=-1)
-    u = np.repeat(u, probs.shape[-1], axis=-1)
-    return (probs.cumsum(-1) >= u).argmax(-1)
+class SimulationEnvironment:
+    def __init__(self, medications, initial_states=(3, 2, 4), time_periods=30):
+        self.medications = medications
+        self.patient = PatientWithHMM(*initial_states)
+        self.time_periods = time_periods
+        self.current_time = 0
+        self.reward_history = []
 
+    def reset(self):
+        self.patient = PatientWithHMM(*self.initial_states)
+        self.current_time = 0
+        self.reward_history.clear()
 
+    def calculate_reward(self):
+        # Reward is based on speech fluency (higher is better) and side effects (lower is better)
+        # For simplicity, I am using a linear combination here. This can be refined as per requirements.
+        return self.patient.speech_fluency - 0.5 * (6 - (self.patient.insomnia + self.patient.depression + self.patient.anxiety))
 
-class DynamicConfounderBanditDiscrete():
+    def step(self, medication):
+        self.patient.take_medication(medication)
+        for _ in range(medication.time_to_effect):
+            self.patient.update_states()
+            self.current_time += 1
+            reward = self.calculate_reward()
+            self.reward_history.append(reward)
+            if self.current_time >= self.time_periods:
+                return sum(self.reward_history)
 
-
-    def __init__(self, X, K, Z, R, probs_context, probs_reward, probs_latent_init, phi_star):
-
-        assert R==2 ## methods below assume binary rewards
-
-        self.X, self.K, self.Z = X, K, Z
-
-        self.probs_context = probs_context
-        self.probs_reward = probs_reward
-        self.probs_latent_init = probs_latent_init
-
-        self.latent_transition = phi_star
-        ## self.latent_transition = (1 - prob_change*(1 + 1/(Z-1))) * np.eye(Z) + np.full((Z,Z), prob_change/(Z-1))
-        ## self.latent_transition /= np.sum(self.latent_transition,1,keepdims=True)
-        self.z = np.random.choice(np.arange(self.Z), p=probs_latent_init)
-
-    def transition():
-
-        '''
-        PSEUDO-CODE
-
-        
-        '''
-        pass
-
-    def step(self):
-
-        self.z = np.random.choice(np.arange(self.Z), p=self.latent_transition[:,self.z]) # state transition
-
-        x = np.random.choice(np.arange(self.X), p=self.probs_context[:,self.z])
-        return x
-
-    def reward(self, action):
-        r = np.random.uniform() < self.probs_reward[action,self.z]
-        return r*1
-
-    def sample_static(self, probs_latent, num_samples=1):
-
-        z_samples = np.random.choice(np.arange(self.Z), size=num_samples, p=probs_latent)
-        x_samples = categorical(np.transpose(self.probs_context[:,z_samples]))
-        r_vec_samples = np.random.uniform(size=(self.K, num_samples)) < self.probs_reward[:,z_samples]
-        a_opt_samples = np.argmax(r_vec_samples, 0)
-
-        return (x_samples, r_vec_samples.transpose(), a_opt_samples)
-
-    def log_likelihood_x(self, x):
-
-        probs_z = np.maximum(self.probs_context[x], 1e-4)
-        return np.log(probs_z)
-
-    def log_likelihood_r(self, reward, action):
-
-        ll = reward * np.log(self.probs_reward[action]) + (1 - reward) * np.log(1 - self.probs_reward[action])
-        return ll
-
-    def entropies_x(self):
-
-        H = -np.einsum('xz,xz->z', self.probs_context, np.log(self.probs_context))
-        return H
-
-    def kldivs_x(self):
-        'matrix of kldivs between z-conditional context likelihoods; element (i,j) = KL[p_i(x),p_j(x)]'
-        'this method is not currently used'
-
-        p = np.repeat(np.expand_dims(self.probs_context, -1), self.Z, axis=-1)
-        q = np.repeat(np.expand_dims(self.probs_context, 1), self.Z, axis=1)
-        return np.einsum('xij,xij->ij', p, np.log(p) - np.log(q))
-
-
-class DynamicConfounderBanditGaussian():
-
-    # this class uses Gaussian models for observations and rewards
-    def __init__(self, X_cond_prob,probs_latent_init, R_cond, Z_states, A_states):
-    #            self, theta_star, probs_latent_init, reward_params
-        self.X_cond_prob, self.probs_latent_init = X_cond_prob, probs_latent_init
-        self.R_cond = R_cond
-        self.Z_states, self.A_states = Z_states, A_states
-
-        self.Z, self.K = len(Z_states['anxiety_level']), len(A_states)
-
-        self.z = [np.random.choice(np.arange(self.Z), p=probs_latent_init[i])+1 for i in range(0, len(self.probs_latent_init))]
-
-    def step(self):
-
-        self.z = [np.random.choice(np.arange(self.Z), p=()) for _ in range(0, len(self.z))] # state transition
-
-        x = np.random.normal(x_mean, x_stdev)
-
-        return x
-
-    def sample_static(self, probs_latent, num_samples=1):
-
-        z_samples = np.random.choice(np.arange(self.Z), size=num_samples, p=probs_latent)
-        x_mean_samples = self.X_cond_prob[z_samples, 0]
-        x_stdev_samples = self.X_cond_prob[z_samples, 1]
-        r_mean_vec_samples = self.R_cond[z_samples, :, 0]
-        r_stdev_vec_samples = self.R_cond[z_samples, :, 1]
-        x_samples = np.random.normal(x_mean_samples, x_stdev_samples)
-        r_vec_samples = np.random.normal(r_mean_vec_samples, r_stdev_vec_samples)
-        #a_opt_samples = np.argmax(self.R_cond[z_samples,:,0], -1)
-        a_opt_samples = np.argmax(r_vec_samples, 1)
-
-        return (x_samples.reshape(-1,1), r_vec_samples.reshape(-1,1), a_opt_samples.reshape(-1,1)) 
-
-    def reward(self, action):
-
-        r_mean = self.R_cond[self.z, action, 0]
-        r_stdev = self.R_cond[self.z, action, 1]
-        r = np.random.normal(r_mean, r_stdev)
-
-        return r
-
-    def log_likelihood_x(self, x):
-
-        x_means = self.X_cond_prob[:, 0]
-        x_stdevs = self.X_cond_prob[:, 1]
-
-        return norm.logpdf(x, x_means, x_stdevs)
-
-    def log_likelihood_r(self, reward, action):
-
-        r_means = self.R_cond[:, action, 0]
-        r_stdevs = self.R_cond[:, action, 1]
-
-        return norm.logpdf(reward, r_means, r_stdevs)
+        return self.calculate_reward()
