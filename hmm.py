@@ -1,135 +1,81 @@
 import numpy as np
-#import copy
-from scipy.stats import norm
 
 
-def discount(t):
-    return 0.5 / np.power(t, 0.6)
+class HiddenMarkovModel:
+    def __init__(self):
+        # TODO: Update these transition probabilities with better values.
+        self.transition_probabilities = {
+            'insomnia': {
+                1: [0.1, 0.2, 0.3, 0.2, 0.2],
+                2: [0.2, 0.1, 0.2, 0.3, 0.2],
+                3: [0.2, 0.2, 0.1, 0.2, 0.3],
+                4: [0.3, 0.2, 0.2, 0.1, 0.2],
+                5: [0.2, 0.3, 0.2, 0.2, 0.1]
+            },
+            'depression': {
+                1: [0.1, 0.3, 0.2, 0.2, 0.2],
+                2: [0.2, 0.1, 0.3, 0.2, 0.2],
+                3: [0.2, 0.2, 0.1, 0.3, 0.2],
+                4: [0.2, 0.2, 0.2, 0.1, 0.3],
+                5: [0.3, 0.2, 0.2, 0.2, 0.1]
+            },
+            'anxiety': {
+                1: [0.1, 0.2, 0.2, 0.3, 0.2],
+                2: [0.2, 0.1, 0.3, 0.2, 0.2],
+                3: [0.2, 0.2, 0.1, 0.2, 0.3],
+                4: [0.3, 0.2, 0.2, 0.1, 0.2],
+                5: [0.2, 0.3, 0.2, 0.2, 0.1]
+            }
+        }
 
-class MultinomialHMMonline:
+    def update_state(self, current_state, state_type):
+        # Use the transition probabilities to determine the next state based on the current state.
+        return np.random.choice([1, 2, 3, 4, 5], p=self.transition_probabilities[state_type][current_state])
 
-    def __init__(self, num_states, num_obs, probs_z=None, iid=False):
-        ' implementation of the online EM algorithm in Mongillo & Deneve (2008), "Online Learning with HMMs" '
+class Patient:
+    def __init__(self, insomnia, depression, anxiety):
+        self.insomnia = insomnia
+        self.depression = depression
+        self.anxiety = anxiety
+        self.speech_fluency = self.calculate_speech_fluency()
+        self.current_medication = None
 
-        self.num_states, self.num_obs = num_states, num_obs
+    def calculate_speech_fluency(self):
+        # This is a simple function that reduces speech fluency based on increased insomnia, depression, and anxiety.
+        # This can be changed or refined as needed.
+        return 1 - 0.1*(self.insomnia + self.depression + self.anxiety)
 
-        self.iid=iid
+    def take_medication(self, medication):
+        self.current_medication = medication
 
-        self.theta = np.random.rand(num_states, num_obs) # emission probabilities; denoted 'b' in Mongillo & Deneve
-        self.theta /= self.theta.sum(1, keepdims=True)
-        #self.theta = np.ones((num_states, num_obs)) / num_states
+    def update_states(self):
+        if self.current_medication:
+            depression_effect, anxiety_effect, insomnia_effect, side_effect = self.current_medication.apply_effect()
+            self.depression = max(1, min(5, self.depression + depression_effect))
+            self.anxiety = max(1, min(5, self.anxiety + anxiety_effect))
+            self.insomnia = max(1, min(5, self.insomnia + insomnia_effect))
+            self.speech_fluency = max(0, min(1, self.speech_fluency - 0.05*side_effect))
+            self.speech_fluency = self.calculate_speech_fluency()
 
-        prob_change = 1 - 2/(num_states+1) # 0.3
-        self.phi = (1 - prob_change) * np.eye(num_states) + prob_change * (1 - np.eye(num_states)) / (num_states - 1) # initial transition matrix estimate; denoted 'a' in Mongillo & Deneve
-        #self.phi = np.ones((num_states, num_states)) / num_states
-        if iid: self.phi = np.repeat(self.phi.sum(0, keepdims=True), num_states, 0)
+# Incorporate HMM in the Patient class
+class PatientWithHMM(Patient):
+    def __init__(self, insomnia, depression, anxiety):
+        super().__init__(insomnia, depression, anxiety)
+        self.hmm = HiddenMarkovModel()
 
-        if probs_z is not None:
-            self.probs_z = probs_z
-        else:
-            self.probs_z = np.ones(num_states) / num_states # initial state probabilities
-    
-        rho_init = 1e-2
-        self.rho = rho_init * np.ones((num_states, num_states, num_obs, num_states)) # sufficient statistics; denoted 'phi' in Mongillo & Deneve
-    
-        self.g = np.multiply.outer(np.eye(num_states), np.eye(num_states))
-        self.g = np.swapaxes(self.g, 1, 2) # g[i,j,l,h] = 1(i=l)1(j=h) as below Eq. (2.9) in Mongillo & Deneve
-
-    def update(self, y, t, learn_theta=True):
-
-        iid = self.iid
-
-        Z, X = self.num_states, self.num_obs
-        eta = discount(t)
-    
-        gamma = self.phi * np.expand_dims(self.theta[:,y], 0) / np.reshape(np.einsum('mn,n,m', self.phi, self.theta[:,y], self.probs_z), (1,1))
-        # note that in the iid case, gamma has no dependence on the first axis as long as self.phi did not
-
-        delta = np.zeros(self.num_obs)
-        delta[y] = 1
-        delta = np.reshape(delta, (1,1,X,1,1)) # indices = (i,j,k,l,h) in Eq. (2.11) of Mongillo & Deneve
-        drho = np.multiply(delta, np.expand_dims(self.g, 2)) # insert k dimension between (i,j) and (l,h) dimensions of g
-        drho = np.multiply(drho, np.reshape(self.probs_z, (1,1,1,Z,1))) # add dimensions to q_l for the preceding (i,j,k) and final (h) dimensions
-        rho_previous = np.repeat(np.expand_dims(self.rho, -1), Z, -1) # add the 'h' index and just repeat, since the first term in Eq. (2.11) is h-independent
-        self.rho = np.einsum('lh,ijklh->ijkh', gamma, (1 - eta) * rho_previous + eta * drho) 
-
-        if not iid:
-            self.probs_z = np.einsum('ml,m->l', gamma, self.probs_z)
-        else:
-            self.probs_z = np.einsum('ml,m->l', gamma, self.phi.mean(0))
-
-        if t>1:
-            self.phi = np.sum(self.rho,(2,3)) / np.expand_dims(np.sum(self.rho,(1,2,3)), -1)
-            if iid:
-                self.phi = np.repeat(self.phi.mean(0, keepdims=True), Z, 0) # average to effectively reduce from transition matrix to prior over z
-            if learn_theta:
-                self.theta = np.sum(self.rho,(0,3)) / np.expand_dims(np.sum(self.rho,(0,2,3)), -1)
-            if np.sum(self.theta[:,y])==0: assert False
-
-        if np.any(np.isnan(self.rho)):
-            print('NaNs in online EM model sufficient statistics!!')
-            exit()
-
-
-class GaussianHMMonline:
-
-    def __init__(self, num_states, probs_z=None, iid=False):
-        ' implementation of the online EM algorithm in Cappe (2011), "Online EM Algorithm for HMMs" '
-
-        self.num_states = num_states
-
-        if iid: raise NotImplementedError
-
-        self.t_min = 1
-
-        if probs_z is not None:
-            self.probs_z = probs_z
-        else:
-            self.probs_z = np.ones(num_states,)/num_states # np.array([0.2,0.8])
-
-        # sufficient statistics
-        rho_init = 1 ## making this close to zero or very large does not help
-        self.rho_phi = rho_init * np.ones((num_states, num_states, num_states)) 
-        self.rho_theta = rho_init * np.ones((num_states, num_states, 3)) # last dimension = sufficient statistics 's'
-
-        prob_change = 0.55
-        self.phi = (1 - prob_change) * np.eye(num_states) + prob_change * (1 - np.eye(num_states)) / (num_states - 1) # initial transition matrix estimate
-
-        stdev_init = num_states
-        self.mu, self.Sigma = np.arange(num_states), stdev_init * np.ones(num_states) # initial estimates of emission distributions
-
-        self.theta = np.concatenate((np.expand_dims(self.mu, axis=0), np.expand_dims(self.Sigma, axis=0)))
-
-    def g(self, y):
-
-        return norm.pdf(y, self.mu, np.sqrt(self.Sigma))
-
-    def update(self, y, t):
-
-        Z = self.num_states
-
-        gamma = discount(t)
-
-        s = np.array([1, y, y*y]) # sufficient statistics for the Gaussian case
-
-        r = np.expand_dims(self.probs_z, 1) * self.phi
-        r /= np.expand_dims(np.einsum('i,ij->j', self.probs_z, self.phi), 0) # Eq. (23) in Cappe (2011) denotes phi as 'q' and probs_z as 'phi'
-
-        self.probs_z = np.einsum('i,ij,j->j', self.probs_z, self.phi, self.g(y)) # Eq. (16)
-        self.probs_z /= self.probs_z.sum()
-
-        self.rho_phi = (1 - gamma) * np.einsum('ijl,lk->ijk', self.rho_phi, r) # Eq. (21)
-        self.rho_phi += gamma * np.expand_dims(r, -1) * np.expand_dims(np.eye(Z), 0)
-        self.rho_theta = (1 - gamma) * np.einsum('ils,lk->iks', self.rho_theta, r) # Eq. (22)
-        self.rho_theta += gamma * np.reshape(s, (1,1,len(s))) * np.expand_dims(np.eye(Z), -1)
-
-        if t>self.t_min:
-
-            self.phi = np.einsum('ijk,k->ij', self.rho_phi, self.probs_z)
-            self.phi /= self.phi.sum(1, keepdims=True)
-
-            S_theta = np.einsum('iks,k->is', self.rho_theta, self.probs_z)
-            self.mu = S_theta[:,1] / S_theta[:,0] # Eq. (25)
-            self.Sigma = S_theta[:,2] / S_theta[:,0] - self.mu * self.mu # Eq. (26)
-
-            self.theta = np.concatenate((np.expand_dims(self.mu, axis=0), np.expand_dims(self.Sigma, axis=0)))
+    def update_states(self):
+        # Use HMM to update latent states
+        self.insomnia = self.hmm.update_state(self.insomnia, 'insomnia')
+        self.depression = self.hmm.update_state(self.depression, 'depression')
+        self.anxiety = self.hmm.update_state(self.anxiety, 'anxiety')
+        
+        if self.current_medication:
+            depression_effect, anxiety_effect, insomnia_effect, side_effect = self.current_medication.apply_effect()
+            
+            # Ensure the states are integers after updating with medication effects.
+            self.depression = int(round(max(1, min(5, self.depression + depression_effect))))
+            self.anxiety = int(round(max(1, min(5, self.anxiety + anxiety_effect))))
+            self.insomnia = int(round(max(1, min(5, self.insomnia + insomnia_effect))))
+            self.speech_fluency = max(0, min(1, self.speech_fluency - 0.05*side_effect))
+        
+        self.speech_fluency = self.calculate_speech_fluency()
