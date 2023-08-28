@@ -11,6 +11,7 @@ def run_simulation_with_linucb(environment, alpha, d, num_iterations):
     total_reward = 0
     rewards = []
 
+    '''
     for _ in range(num_iterations):
         # For simplicity, we'll use the patient's speech fluency as the feature vector
         x = np.array([environment.patient.speech_fluency])
@@ -28,46 +29,85 @@ def run_simulation_with_linucb(environment, alpha, d, num_iterations):
         
         # Update the agent
         agent.update(x, reward)
+        '''
+    
+    for _ in range(num_iterations):
+        predicted_rewards = []
+
+        for med in environment.medications:
+
+            x = np.array([
+                environment.patient.speech_fluency,
+                med.effect_depression[0],
+                med.effect_anxiety[0],
+                med.effect_insomnia[0],
+                med.side_effect[0]
+            ])
+            predicted_reward = agent.predict(x)
+            predicted_rewards.append(predicted_reward)
+        
+        chosen_medication = environment.medications[np.argmax(predicted_rewards)]
+
+        chosen_medications = [environment.medications[x] for x in np.argsort(predicted_rewards)[-5:]]
+
+        # reward = environment.step(chosen_medication)
+
+        reward = [environment.step(chosen_medication) for chosen_medication in chosen_medications]
+
+        # chosen_x = np.array([
+        #     environment.patient.speech_fluency,
+        #     chosen_medication.effect_depression[0],
+        #     chosen_medication.effect_anxiety[0],
+        #     chosen_medication.effect_insomnia[0],
+        #     chosen_medication.side_effect[0]
+        # ])
+        
+        chosen_x = [np.array([
+            environment.patient.speech_fluency,
+            chosen_medication.effect_depression[0],
+            chosen_medication.effect_anxiety[0],
+            chosen_medication.effect_insomnia[0],
+            chosen_medication.side_effect[0]
+        ]) for chosen_medication in chosen_medications]
+
+        agent.update(chosen_x, reward)
+
+        total_reward += sum(reward)
+        rewards.append(total_reward)
 
     return rewards
 
-medication_example = Md("MedA", (0.2, 0.1), (-0.3, 0.1), (-0.2, 0.1), (0.1, 0.05), 2)
-patient_example = Pt(3, 2, 4)
-patient_example.take_medication(medication_example)
-patient_example.update_states()
-
-patient_example.speech_fluency
-
-
-patient_hmm_example = Phmm(3, 2, 4)
-patient_hmm_example.take_medication(medication_example)
-patient_hmm_example.update_states()
-
-patient_hmm_example.speech_fluency, patient_hmm_example.insomnia, patient_hmm_example.depression, patient_hmm_example.anxiety
+medication_a = Md("anxiety1", (0.2, 0.1), (-0.3, 0.1), (-0.2, 0.1), (0.1, 0.05), 4)
+medication_b = Md("anxiety2", (-0.2, 0.1), (-0.3, 0.1), (0.2, 0.1), (0.1, 0.05), 3)
+medication_c = Md("z-drug", (0.0, 0.1), (0.1, 0.1), (-0.4, 0.1), (0.1, 0.05), 4)
+medication_d = Md("anti-depression", (-0.4, 0.1), (-0.1, 0.1), (0.1, 0.1), (0.1, 0.05), 7)
+medication_e = Md("anti-depression2", (-0.3, 0.1), (0.1, 0.1), (-0.1, 0.1), (0.1, 0.05), 4)
 
 
-medication_b = Md("MedB", (-0.2, 0.1), (-0.3, 0.1), (0.2, 0.1), (0.1, 0.05), 3)
-simulation = Se([medication_example, medication_b])
-reward_med_a = simulation.step(medication_example)
+simulation = Se([medication_a, medication_b, medication_c, medication_d, medication_e])
+reward_med_a = simulation.step(medication_a)
 reward_med_b = simulation.step(medication_b)
+reward_med_b = simulation.step(medication_c)
+reward_med_b = simulation.step(medication_d)
+reward_med_b = simulation.step(medication_e)
 
-reward_med_a, reward_med_b
+reward_med_a, reward_med_b, medication_c, medication_d, medication_e
 
 # Test the LinUCB with the simulation environment
-rewards = run_simulation_with_linucb(simulation, alpha=1, d=1, num_iterations=30)
+rewards = run_simulation_with_linucb(simulation, alpha=1, d=5, num_iterations=30)
 rewards
 
-def run_multiple_simulations(num_simulations=1000, num_iterations=50):
+def run_multiple_simulations(num_simulations=10, num_iterations=30):
     all_rewards = []
 
     for _ in range(num_simulations):
-        simulation = Se([medication_example, medication_b])
-        rewards = run_simulation_with_linucb(simulation, alpha=1, d=1, num_iterations=num_iterations)
+        simulation = Se([medication_a, medication_b, medication_c, medication_d, medication_e])
+        rewards = run_simulation_with_linucb(simulation, alpha=1, d=5, num_iterations=num_iterations)
         all_rewards.append(rewards)
 
     return all_rewards
 
-num_simulations = 100
+num_simulations = 20
 all_rewards = run_multiple_simulations(num_simulations=num_simulations)
 
 # Plotting the results
@@ -78,3 +118,16 @@ plt.xlabel('Iterations')
 plt.ylabel('Cumulative Reward')
 plt.title('Reward over Time across Multiple Simulations')
 plt.show()
+
+
+'''
+reward_at_i = [np.diff([0] + r) for r in all_rewards]
+
+average_rewards = np.mean(reward_at_i, axis=0)
+
+plt.plot(average_rewards)
+plt.xlabel('Iteration')
+plt.ylabel('Average Reward')
+plt.title('Reward over Time across Multiple Simulations')
+plt.show()
+'''

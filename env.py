@@ -1,3 +1,4 @@
+from typing import Any
 import numpy as np
 from hmm import PatientWithHMM
 
@@ -23,10 +24,25 @@ class Medication:
                 np.random.normal(self.side_effect[0], self.side_effect[1])
             )
 
+    def __str__(self) -> str:
+        return "Medication: " + self.name
+    
+    def __repr__(self) -> str:
+        return "Medication: " + self.name
+
 
 class SimulationEnvironment:
-    def __init__(self, medications, initial_states=(3, 2, 4), time_periods=30):
-        self.medications = medications
+    def __init__(self, medications, initial_states=(3, 5, 4), time_periods=30):
+        
+        self.medications = []
+
+        # this creates a list of medications (5 of each) that can be taken. Of course, the more you take 1 medication
+        # the more toxicity becomes an issue, ergo we are increasing the side effect.
+        for medication in medications:
+            for i in range(1,6):
+                # add medication delay
+                self.medications.append(Medication(medication.name, medication.effect_depression, medication.effect_anxiety, medication.effect_insomnia, tuple([medication.side_effect[0]*i, medication.side_effect[1]]), medication.time_to_effect))
+        # self.medications = medications
         self.patient = PatientWithHMM(*initial_states)
         self.time_periods = time_periods
         self.current_time = 0

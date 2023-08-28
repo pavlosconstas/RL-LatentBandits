@@ -17,5 +17,8 @@ class LinUCB:
 
     def update(self, x, reward):
         # x: feature vector
-        self.A += np.outer(x, x)
-        self.b += reward * x
+        # self.A += np.outer(x, x)
+        # self.b += reward * x
+        for i in range(len(x)):
+            self.A += np.outer(x[i], x[i])
+            self.b += reward[i] * x[i]
