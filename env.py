@@ -1,71 +1,46 @@
-from typing import Any
 import numpy as np
-from hmm import PatientWithHMM
 
 class Medication:
-    def __init__(self, name, effect_depression, effect_anxiety, effect_insomnia, side_effect, time_to_effect):
+    def __init__(self, name, depression_effect, anxiety_effect, insomnia_effect, side_effect, time_to_effect):
         self.name = name
-        self.effect_depression = effect_depression # tuple(mean, std_dev)
-        self.effect_anxiety = effect_anxiety
-        self.effect_insomnia = effect_insomnia
+        self.depression_effect = depression_effect
+        self.anxiety_effect = anxiety_effect
+        self.insomnia_effect = insomnia_effect
         self.side_effect = side_effect
         self.time_to_effect = time_to_effect
-        self.current_effect_time = 0
-
-    def apply_effect(self):
-        if self.current_effect_time < self.time_to_effect:
-            self.current_effect_time += 1
-            return (0, 0, 0, 0)
-        else:
-            return (
-                np.random.normal(self.effect_depression[0], self.effect_depression[1]),
-                np.random.normal(self.effect_anxiety[0], self.effect_anxiety[1]),
-                np.random.normal(self.effect_insomnia[0], self.effect_insomnia[1]),
-                np.random.normal(self.side_effect[0], self.side_effect[1])
-            )
-
-    def __str__(self) -> str:
-        return "Medication: " + self.name
-    
-    def __repr__(self) -> str:
-        return "Medication: " + self.name
-
 
 class SimulationEnvironment:
-    def __init__(self, medications, initial_states=(3, 5, 4), time_periods=30):
+    def __init__(self, patient, medications):
+        self.patient = patient
+        self.medications = medications
+        self.day = 0
+
+    def _apply_medication_effects(self, medication):
+        mean, std = medication.depression_effect
+        self.patient.depression += np.random.normal(mean, std)
         
-        self.medications = []
-
-        # this creates a list of medications (5 of each) that can be taken. Of course, the more you take 1 medication
-        # the more toxicity becomes an issue, ergo we are increasing the side effect.
-        for medication in medications:
-            for i in range(1,6):
-                # add medication delay
-                self.medications.append(Medication(medication.name, medication.effect_depression, medication.effect_anxiety, medication.effect_insomnia, tuple([medication.side_effect[0]*i, medication.side_effect[1]]), medication.time_to_effect))
-        # self.medications = medications
-        self.patient = PatientWithHMM(*initial_states)
-        self.time_periods = time_periods
-        self.current_time = 0
-        self.reward_history = []
-
-    def reset(self):
-        self.patient = PatientWithHMM(*self.initial_states)
-        self.current_time = 0
-        self.reward_history.clear()
-
-    def calculate_reward(self):
-        # Reward is based on speech fluency (higher is better) and side effects (lower is better)
-        # For simplicity, I am using a linear combination here. This can be refined as per requirements.
-        return self.patient.speech_fluency - 0.5 * (6 - (self.patient.insomnia + self.patient.depression + self.patient.anxiety))
-
-    def step(self, medication):
-        self.patient.take_medication(medication)
-        for _ in range(medication.time_to_effect):
-            self.patient.update_states()
-            self.current_time += 1
-            reward = self.calculate_reward()
-            self.reward_history.append(reward)
-            if self.current_time >= self.time_periods:
-                return sum(self.reward_history)
-
-        return self.calculate_reward()
+        mean, std = medication.anxiety_effect
+        self.patient.anxiety += np.random.normal(mean, std)
+        
+        mean, std = medication.insomnia_effect
+        self.patient.insomnia += np.random.normal(mean, std)
+        
+        mean, std = medication.side_effect
+        self.patient.side_effect_accumulation += np.random.normal(mean, std)
+        
+        self.patient.medication_accumulation += 1
+        
+    def step(self, action):
+        chosen_medication = self.medications[action]
+        self._apply_medication_effects(chosen_medication)
+        
+        # Update patient's speech fluency based on the current state
+        self.patient.speech_fluency = 1 - (0.2 * self.patient.depression + 0.3 * self.patient.anxiety + 0.1 * self.patient.insomnia)/15
+        
+        # Calculate reward as the speech fluency minus side effects
+        reward = self.patient.speech_fluency - (0.2 * self.patient.side_effect_accumulation)
+        
+        context = np.array([self.patient.speech_fluency, self.patient.hours_slept_previous_night, self.patient.medication_accumulation, self.day])
+        self.day += 1
+        
+        return context, reward
