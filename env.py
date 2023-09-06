@@ -9,6 +9,9 @@ class Medication:
         self.side_effect = side_effect
         self.time_to_effect = time_to_effect
 
+    def __repr__(self) -> str:
+        return self.name
+
 class SimulationEnvironment:
     def __init__(self, patient, medications):
         self.patient = patient
